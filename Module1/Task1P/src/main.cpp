@@ -19,25 +19,23 @@ Servo tempServo;
 
 inline int tempMap(int rawTemp);
 
-inline void printTemp(int rawTemp, int mappedTemp);
-
 void setup()
 {
     // Start the serial connection
     Serial.begin(115200);
 
     // Set up the temperature sensor and servo pins
-    pinMode(4, INPUT);
-    tempServo.attach(3);
+    pinMode(TEMP_SENSOR, INPUT);
+    tempServo.attach(SERVO_OUTPUT);
 }
 
 void loop()
 {
-    // Read and map the temperature sensor input
+    // Read and map the temperature sensor input - SENSE, then THINK
     int rawTemp = analogRead(A0);
     int mappedTemp = tempMap(rawTemp);
 
-    // Output to the servo
+    // Output to the servo - ACT
     tempServo.write(mappedTemp);
 
     // Print the temperature inputs
@@ -47,7 +45,7 @@ void loop()
     Serial.println(mappedTemp);
     Serial.println(); // Slightly annoying that I have to do this. Alternative is one print with an sprintf into a buffer
 
-    delay(250);
+    delay(DELAY_TIME);
 }
 
 // Maps the temperature to the valid ranges.
