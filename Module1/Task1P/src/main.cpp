@@ -1,6 +1,9 @@
 /*
  * SIT315 M1.T1P - Build a simple Sense-Think-Act Board
  * In this task, we are reading the output of a temperature sensor, and feeding it into a servo.
+ *
+ * The source code is hosted at https://github.com/Zylanx/SIT315
+ * Run using PlatformIO
  */
 
 #include <Arduino.h>
