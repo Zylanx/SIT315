@@ -36,6 +36,8 @@ void setup()
     // Set up the temperature sensor and servo pins
     pinMode(TEMP_SENSOR, INPUT);
     tempServo.attach(SERVO_OUTPUT);
+
+    setupInterrupts();
 }
 
 void loop()
