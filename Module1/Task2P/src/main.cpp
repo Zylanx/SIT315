@@ -40,6 +40,7 @@ void loop()
 {
 }
 
+// Handle the servo and temp interrupt request.
 ISR(TIMER2_COMPA_vect)
 {
     ATOMIC({
@@ -67,6 +68,8 @@ inline int tempMap(int rawTemp)
     return (int)map(rawTemp, 20, 358, 0, 180);
 }
 
+// Set up the timer registers and interrupts for automatically reading the temp
+// data and setting the servo.
 void setupInterrupts()
 {
     // Disable interrupts while setting up
