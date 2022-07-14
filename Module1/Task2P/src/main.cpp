@@ -11,11 +11,7 @@
 #include <Servo.h>
 
 // Define interrupt context handler
-#define ATOMIC(X) (noInterrupts(); (X) interrupts();)
-
-
-// Setup Interrupt clocking
-#define clock 1
+#define ATOMIC(X) noInterrupts(); X; interrupts();
 
 // Pin Definitions
 #define TEMP_SENSOR A0
@@ -44,7 +40,7 @@ void loop()
 {
 }
 
-ISR(TIMER1_COMPA_vect)
+ISR(TIMER2_COMPA_vect)
 {
     ATOMIC({
         // Read and map the temperature sensor input - SENSE, then THINK
@@ -76,17 +72,17 @@ void setupInterrupts()
     // Disable interrupts while setting up
     ATOMIC({
         // Clear registers
-        TCCR1A = 0;
-        TCCR1B = 0;
-        TCNT1 = 0;
+        TCCR2A = 0; // set entire TCCR2A register to 0
+        TCCR2B = 0; // same for TCCR2B
+        TCNT2  = 0; // initialize counter value to 0
 
-        // 15624 = (16000000/(4 * 256)) - 1
-        OCR1A = 15624;
-        // Prescaler 256
-        TCCR1B |= (1 << CS12);
-        // CTC
-        TCCR1B |= (1 << WGM12);
-        // Output Compare Match A Interrupt Enable
-        TIMSK1 |= (1 << OCIE1A);
+        // set compare match register for 61.03515625 Hz increments
+        OCR2A = 255; // 61.03515625 = 16000000 / ((255 + 1) * 1024) (must be <256)
+        // turn on CTC mode
+        TCCR2B |= (1 << WGM21);
+        // Set CS22, CS21 and CS20 bits for 64 prescaler
+        TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
+        // enable timer compare interrupt
+        TIMSK2 |= (1 << OCIE2A);
     });
 }
