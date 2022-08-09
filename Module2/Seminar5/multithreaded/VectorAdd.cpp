@@ -7,11 +7,31 @@
 #include <algorithm>
 
 
-#define PARTITION_COUNT 2
+#define PARTITION_COUNT 8
 
 
 using namespace std::chrono;
 using namespace std;
+
+
+// Helper function to print arrays
+void printArray(int *vector, int size)
+{
+
+    cout << vector[0];
+    for (int i = 1; i < size; i++)
+    {
+        cout << ", " << vector[i];
+
+        if( i % 20 == 0){
+            cout <<"\n";
+        }
+
+    }
+    cout << "\n";
+    cout << "\n***************************************************************************************\n";
+}
+
 
 // Fill a vector with random numbers between 0 and 100 with multi-threading.
 void randomVector(int vector[], std::vector<std::thread> &threads, int threadCount, int partitionSize)
@@ -116,6 +136,14 @@ int main()
 
     // Compute the run time of the algorithm
     auto duration = duration_cast<microseconds>(stop - start);
+
+    // write the first 100 elements of the vectors
+    cout <<"v1: \n\n  ";
+    printArray(v1, size < 100 ? size : 100);
+    cout <<"v2: \n\n  ";
+    printArray(v2, size < 100 ? size : 100);
+    cout <<"v3: \n\n  ";
+    printArray(v3, size < 100 ? size : 100);
 
     cout << "Time taken by function: "
          << duration.count() << " microseconds" << endl;
