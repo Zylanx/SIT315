@@ -17,14 +17,19 @@
 using namespace std::chrono;
 using namespace std;
 
+
+int const line_width = getenv("COLUMNS") ? atoi(getenv("COLUMNS")) : 80;
+string spaces{static_cast<char>(line_width - 1), ' '};
+
+
 // Helper function to print arrays
 void printMatrix(int const matrix[], int const size)
 {
-    for (auto i = 0; i < std::min(20, size); i++)
+    for (auto i = 0; i < min(20, size); i++)
     {
         cout << matrix[i * size];
 
-        for (auto j = 1; j < std::min(20, size); j++)
+        for (auto j = 1; j < min(20, size); j++)
         {
             cout << ", " << matrix[i * size + j];
         }
@@ -83,7 +88,6 @@ microseconds OmpRun(unsigned long size, unsigned long length)
             m2[i] = rand_r(&seed) % 100;
         }
 
-#pragma omp single
         TransposeOmp(m2, m2Transposed, size);
 
         // Compute the vector addition for each element of the input vectors
@@ -111,8 +115,8 @@ microseconds OmpRun(unsigned long size, unsigned long length)
 //    printMatrix(m2, size);
 //    printMatrix(m3, size);
 
-    cout << "Time taken by function: "
-         << duration.count() << " microseconds" << endl;
+//    cout << "Time taken by function: "
+//         << duration.count() << " microseconds" << endl;
 
     delete[] m1;
     delete[] m2;
@@ -136,7 +140,7 @@ void TransposeStdThread(int const inputVector[], int outputVector[], int const s
         }
     };
 
-    std::vector<std::thread> threads;
+    vector<std::thread> threads;
 
     for (int i = 0; i < THREADS; i++)
     {
@@ -152,7 +156,7 @@ void TransposeStdThread(int const inputVector[], int outputVector[], int const s
 
 void RandomMatrixStdThread(int const block, int const blockSize, int matrix[])
 {
-    unsigned int seed = time(nullptr) * (std::hash<std::thread::id>()(std::this_thread::get_id()) + 1);
+    unsigned int seed = time(nullptr) * (hash<std::thread::id>()(std::this_thread::get_id()) + 1);
 
     // Loop through the vector, generating a random integer between 0 and 100 for each slot.
     for (auto i = block * blockSize; i < (block + 1) * blockSize; i++)
@@ -191,7 +195,7 @@ microseconds StdThreadRun(unsigned long size, unsigned long length)
     int *m3 = new int[length];
 
     {
-        std::vector<std::thread> threads;
+        vector<std::thread> threads;
 
         auto blockSize = length / (THREADS / 2);
 
@@ -213,7 +217,7 @@ microseconds StdThreadRun(unsigned long size, unsigned long length)
 
     // Compute the vector addition for each element of the input vectors
     {
-        std::vector<std::thread> threads;
+        vector<std::thread> threads;
 
         int *m2Transposed = new int[length];
         TransposeStdThread(m2, m2Transposed, size);
@@ -240,8 +244,8 @@ microseconds StdThreadRun(unsigned long size, unsigned long length)
 //    printMatrix(m2, size);
 //    printMatrix(m3, size);
 
-    cout << "Time taken by function: "
-         << duration.count() << " microseconds" << endl;
+//    cout << "Time taken by function: "
+//         << duration.count() << " microseconds" << endl;
 
     delete[] m1;
     delete[] m2;
@@ -251,29 +255,38 @@ microseconds StdThreadRun(unsigned long size, unsigned long length)
 }
 
 
+unsigned long Average(vector<microseconds> runs)
+{
+    return (reduce(runs.begin(), runs.end()) / runs.size()).count();
+}
+
+
 int main()
 {
     unsigned long constexpr size = SIZE;
     unsigned long constexpr length = size * size;
 
     cout << "std::thread Runs" << endl;
-    std::vector<microseconds> stdThreadRuns;
+    vector<microseconds> stdThreadRuns;
     for (auto i = 0; i < RUNS; i++)
     {
         stdThreadRuns.push_back(StdThreadRun(size, length));
+        cout << '\r' << spaces << '\r' << "Runs: " << stdThreadRuns.size() << "\t\t" << "Average: " << Average(stdThreadRuns) << flush;
     }
-    cout << "------------------------------" << endl;
+    cout << endl << "------------------------------" << endl;
 
     cout << "OMP Runs" << endl;
-    std::vector<microseconds> ompRuns;
+    vector<microseconds> ompRuns;
     for (auto i = 0; i < RUNS; i++)
     {
         ompRuns.push_back(OmpRun(size, length));
+        cout << '\r' << spaces << '\r' << "Runs: " << ompRuns.size() << "\t\t" << "Average: " << Average(ompRuns) << flush;
     }
+    cout << endl << "------------------------------" << endl;
 
 
-    cout << "std::thread Average: " << (std::reduce(stdThreadRuns.begin(), stdThreadRuns.end()) / stdThreadRuns.size()).count() << endl;
-    cout << "OMP Average: " << (std::reduce(ompRuns.begin(), ompRuns.end()) / ompRuns.size()).count() << endl;
+    cout << "std::thread Average: " << Average(stdThreadRuns) << endl;
+    cout << "OMP Average: " << Average(ompRuns) << endl;
 
 
     return 0;
