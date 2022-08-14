@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cstdlib>
-#include <time.h>
+#include <ctime>
 #include <chrono>
 
 
@@ -28,24 +28,14 @@ void printMatrix(int const matrix[], int const size)
 }
 
 
-// TODO: Redo the comments from vector to matrix
-
-void randomMatrix(int matrix[], unsigned int const length)
-{
-    // Loop through the vector, generating a random integer between 0 and 100 for each slot.
-    for (int i = 0; i < length; i++)
-    {
-        matrix[i] = rand() % 100;
-    }
-}
-
-void TransposeOmp(int const inputVector[], int outputVector[], int const size)
+// Transposes a matrix into another pointer.
+void transpose(int const inputMatrix[], int outputMatrix[], int const size)
 {
     for (auto i = 0; i < size; i++)
     {
         for (auto j = 0; j < size; j++)
         {
-            outputVector[j * size + i] = inputVector[i * size + j];
+            outputMatrix[j * size + i] = inputMatrix[i * size + j];
         }
     }
 }
@@ -53,30 +43,41 @@ void TransposeOmp(int const inputVector[], int outputVector[], int const size)
 
 int main()
 {
+    // Set up the matrix column size, and total length of the storage arrays
     unsigned long constexpr size = 512;
-    unsigned long constexpr totalSize = size * size;
+    unsigned long constexpr length = size * size;
 
+    // Seed the PRNG engine.
     srand(time(nullptr));
+
+    // Allocate memory for the matrices
+    // The matrices will be stored as 1D arrays, instead of 2D arrays, to help with caching.
+    int *m1 = (int *)malloc(sizeof(int *) * length);
+    int *m2 = (int *)malloc(sizeof(int *) * length);
+    int *m3 = (int *)malloc(sizeof(int *) * length);
+
+    // Loop through the input matrices, generating random integer between 0 and 100 for each slot.
+    for (int i = 0; i < length; i++)
+    {
+        m1[i] = rand() % 100;
+        m2[i] = rand() % 100;
+    }
 
     // Store the time before the execution of the algorithm, for computing run time
     auto start = high_resolution_clock::now();
 
-    // Allocate memory for the vectors
-    int *m1 = (int *)malloc(sizeof(int *) * size * size);
-    int *m2 = (int *)malloc(sizeof(int *) * size * size);
-    int *m3 = (int *)malloc(sizeof(int *) * size * size);
+    // Transpose the second matrix to make it so that it is multiplying rows by rows.
+    // This further helps with caching, it uses contiguous memory instead of jumping around.
+    int *m2Transposed = new int[length];
+    transpose(m2, m2Transposed, size);
 
-    randomMatrix(m1, totalSize);
-    randomMatrix(m2, totalSize);
-
-    int *m2Transposed = new int[size * size];
-    TransposeOmp(m2, m2Transposed, size);
-
-    // Compute the vector addition for each element of the input vectors
+    // Compute the vector addition for each element of the input matrices.
+    // i represents the row and j represents the column of the output matrix that is being calculated.
     for (int i = 0; i < size; i++)
     {
         for (int j = 0; j < size; j++)
         {
+            // Sum up the multiplication of row and column of the input matrices.
             int temp = 0;
             for (int k = 0; k < size; k++)
             {
@@ -86,11 +87,13 @@ int main()
         }
     }
 
+    // Store the end time of the algorithm.
     auto stop = high_resolution_clock::now();
 
     // Compute the run time of the algorithm
     auto duration = duration_cast<microseconds>(stop - start);
 
+    // Print the results of the algorithm.
     printMatrix(m1, size);
     printMatrix(m2, size);
     printMatrix(m3, size);

@@ -1,25 +1,16 @@
 #include <iostream>
 #include <cstdlib>
-#include <ctime>
 #include <chrono>
 #include <vector>
-#include <algorithm>
-#include <numeric>
-#include <thread>
 #include <omp.h>
 
 
-#define RUNS 500
-#define SIZE 512
-#define THREADS omp_get_max_threads()
+#define SIZE 512  // The size of the matrix.
+#define THREAD_COUNT 16  // The number of threads to use.
 
 
 using namespace std::chrono;
 using namespace std;
-
-
-int const line_width = getenv("COLUMNS") ? atoi(getenv("COLUMNS")) : 80;
-string spaces{static_cast<char>(line_width - 1), ' '};
 
 
 // Helper function to print arrays
@@ -41,61 +32,67 @@ void printMatrix(int const matrix[], int const size)
 }
 
 
-// TODO: Redo the comments from vector to matrix
-
-
-void TransposeOmp(int const * const inputVector, int * const outputVector, int const size)
+int main()
 {
-#pragma omp parallel for default(none) firstprivate(size) shared(inputVector, outputVector)
-    for (auto i = 0; i < size; i++)
-    {
-        for (auto j = 0; j < size; j++)
-        {
-            outputVector[j * size + i] = inputVector[i * size + j];
-        }
-    }
-}
+    // Set up the matrix column size, and total length of the storage arrays
+    unsigned long constexpr size = SIZE;
+    unsigned long constexpr length = size * size;
 
+    // Set the number of threads OMP can use.
+    omp_set_num_threads(THREAD_COUNT);
 
-microseconds OmpRun(unsigned long size, unsigned long length)
-{
-    omp_set_num_threads(THREADS);
-
-    // Store the time before the execution of the algorithm, for computing run time
-    auto start = high_resolution_clock::now();
-
-    // Allocate memory for the vectors
+    // Allocate memory for the matrices
     int *m1 = new int[length];
     int *m2 = new int[length];
     int *m3 = new int[length];
 
-
+    // Set up an array to store the transposed version of m2.
     int *m2Transposed = new int[length];
-#pragma omp parallel
+
+#pragma omp parallel default(none) firstprivate(length) shared(m1, m2)
     {
+        // Generate a private seed for each thread based on the time and the thread number.
         unsigned int seed = (unsigned int)omp_get_wtime() * omp_get_thread_num() + 1;
 
-        // Loop through the vector, generating a random integer between 0 and 100 for each slot.
-#pragma omp for nowait
+        // Loop through the matrices, generating a random integer between 0 and 100 for each slot.
+#pragma omp for
         for (auto i = 0; i < length; i++)
         {
             m1[i] = rand_r(&seed) % 100;
         }
-
 #pragma omp for
         for (auto i = 0; i < length; i++)
         {
             m2[i] = rand_r(&seed) % 100;
         }
+    }
 
-        TransposeOmp(m2, m2Transposed, size);
+    // Store the time before the execution of the algorithm, for computing run time
+    auto start = high_resolution_clock::now();
 
-        // Compute the vector addition for each element of the input vectors
-#pragma omp for schedule(dynamic) collapse(1)
+    // Fork the program into multiple threads, for the main parts of the algorithm.
+#pragma omp parallel default(none) firstprivate(size, length) shared(m1, m2, m3, m2Transposed)
+    {
+        // Transpose the second matrix to speed up the algorithm
+        // Helps with caching by keeping the access sequential when accessing
+        // what would originally be the columns.
+#pragma omp for
         for (auto i = 0; i < size; i++)
         {
             for (auto j = 0; j < size; j++)
             {
+                m2Transposed[j * size + i] = m2[i * size + j];
+            }
+        }
+
+        // Compute the matrix multiplication for every element.
+        // i represents the row and j represents the column of the output matrix that is being calculated.
+#pragma omp for
+        for (auto i = 0; i < size; i++)
+        {
+            for (auto j = 0; j < size; j++)
+            {
+                // Sum up the multiplication of row and column of the input matrices.
                 int temp = 0;
                 for (auto k = 0; k < size; k++)
                 {
@@ -111,183 +108,17 @@ microseconds OmpRun(unsigned long size, unsigned long length)
     // Compute the run time of the algorithm
     auto duration = duration_cast<microseconds>(stop - start);
 
-//    printMatrix(m1, size);
-//    printMatrix(m2, size);
-//    printMatrix(m3, size);
+    printMatrix(m1, size);
+    printMatrix(m2, size);
+    printMatrix(m3, size);
 
-//    cout << "Time taken by function: "
-//         << duration.count() << " microseconds" << endl;
+    cout << "Time taken by function: "
+         << duration.count() << " microseconds" << endl;
 
     delete[] m1;
     delete[] m2;
     delete[] m3;
     delete[] m2Transposed;
-
-    return duration;
-}
-
-
-void TransposeStdThread(int const inputVector[], int outputVector[], int const size)
-{
-    auto worker = [=](int const threadId, int const threadCount)
-    {
-        for (auto i = threadId; i < size; i += threadCount)
-        {
-            for (auto j = 0; j < size; j++)
-            {
-                outputVector[j * size + i] = inputVector[i * size + j];
-            }
-        }
-    };
-
-    vector<std::thread> threads;
-
-    for (int i = 0; i < THREADS; i++)
-    {
-        threads.emplace_back(worker, i, THREADS);
-    }
-
-    for (auto &thread: threads)
-    {
-        thread.join();
-    }
-}
-
-
-void RandomMatrixStdThread(int const block, int const blockSize, int matrix[])
-{
-    unsigned int seed = time(nullptr) * (hash<std::thread::id>()(std::this_thread::get_id()) + 1);
-
-    // Loop through the vector, generating a random integer between 0 and 100 for each slot.
-    for (auto i = block * blockSize; i < (block + 1) * blockSize; i++)
-    {
-        matrix[i] = rand_r(&seed) % 100;
-    }
-}
-
-
-void MatrixMultiplyStdThread(int const threadId, int const assignedThreads, int const matrix1[], int const matrix2Transposed[], int matrix3[], int const size)
-{
-    // We will assign row by row
-    for (auto i = threadId; i < size; i += assignedThreads)
-    {
-        for (auto j = 0; j < size; j++)
-        {
-            int temp = 0;
-            for (auto k = 0; k < size; k++)
-            {
-                temp += matrix1[i * size + k] * matrix2Transposed[j * size + k];
-            }
-            matrix3[i * size + j] = temp;
-        }
-    }
-}
-
-
-microseconds StdThreadRun(unsigned long size, unsigned long length)
-{
-    // Store the time before the execution of the algorithm, for computing run time
-    auto start = high_resolution_clock::now();
-
-    // Allocate memory for the vectors
-    int *m1 = new int[length];
-    int *m2 = new int[length];
-    int *m3 = new int[length];
-
-    {
-        vector<std::thread> threads;
-
-        auto blockSize = length / (THREADS / 2);
-
-        for (int i = 0; i < THREADS / 2; i++)
-        {
-            threads.emplace_back(RandomMatrixStdThread, i, blockSize, m1);
-        }
-
-        for (int i = 0; i < THREADS / 2; i++)
-        {
-            threads.emplace_back(RandomMatrixStdThread, i, blockSize, m2);
-        }
-
-        for (auto &thread : threads)
-        {
-            thread.join();
-        }
-    }
-
-    // Compute the vector addition for each element of the input vectors
-    {
-        vector<std::thread> threads;
-
-        int *m2Transposed = new int[length];
-        TransposeStdThread(m2, m2Transposed, size);
-
-        for (int i = 0; i < THREADS; i++)
-        {
-            threads.emplace_back(MatrixMultiplyStdThread, i, THREADS, m1, m2Transposed, m3, size);
-        }
-
-        for (auto &thread : threads)
-        {
-            thread.join();
-        }
-
-        delete[] m2Transposed;
-    }
-
-    auto stop = high_resolution_clock::now();
-
-    // Compute the run time of the algorithm
-    auto duration = duration_cast<microseconds>(stop - start);
-
-//    printMatrix(m1, size);
-//    printMatrix(m2, size);
-//    printMatrix(m3, size);
-
-//    cout << "Time taken by function: "
-//         << duration.count() << " microseconds" << endl;
-
-    delete[] m1;
-    delete[] m2;
-    delete[] m3;
-
-    return duration;
-}
-
-
-unsigned long Average(vector<microseconds> runs)
-{
-    return (reduce(runs.begin(), runs.end()) / runs.size()).count();
-}
-
-
-int main()
-{
-    unsigned long constexpr size = SIZE;
-    unsigned long constexpr length = size * size;
-
-    cout << "std::thread Runs" << endl;
-    vector<microseconds> stdThreadRuns;
-    for (auto i = 0; i < RUNS; i++)
-    {
-        stdThreadRuns.push_back(StdThreadRun(size, length));
-        cout << '\r' << spaces << '\r' << "Runs: " << stdThreadRuns.size() << "\t\t" << "Average: " << Average(stdThreadRuns) << flush;
-    }
-    cout << endl << "------------------------------" << endl;
-
-    cout << "OMP Runs" << endl;
-    vector<microseconds> ompRuns;
-    for (auto i = 0; i < RUNS; i++)
-    {
-        ompRuns.push_back(OmpRun(size, length));
-        cout << '\r' << spaces << '\r' << "Runs: " << ompRuns.size() << "\t\t" << "Average: " << Average(ompRuns) << flush;
-    }
-    cout << endl << "------------------------------" << endl;
-
-
-    cout << "std::thread Average: " << Average(stdThreadRuns) << endl;
-    cout << "OMP Average: " << Average(ompRuns) << endl;
-
 
     return 0;
 }
