@@ -1,7 +1,7 @@
 #include <random>
-#include <chrono>
 #include <iostream>
 #include <iomanip>
+#include <omp.h>
 
 
 #define ARRAY_SIZE 100000
@@ -113,16 +113,17 @@ int main()
 
     printArray(array, ARRAY_SIZE);
 
-    auto start_time = std::chrono::high_resolution_clock::now();
+    auto start_time = omp_get_wtime();
 
     quickSort(array, 0, ARRAY_SIZE - 1);
 
-    auto duration = std::chrono::high_resolution_clock::now() - start_time;
+    auto end_time = omp_get_wtime();
+    auto duration = end_time - start_time;
 
     std::cout << std::endl;
     printArray(array, ARRAY_SIZE);
 
-    std::cout << "Execution Time: " << duration.count() << std::endl;
+    std::cout << "Execution Time: " << duration << std::endl;
 
     return 0;
 }
