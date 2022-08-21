@@ -5,3 +5,4 @@ set(CMAKE_CXX_STANDARD 14)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/sequential" "${PROJECT_SOURCE_DIR}/sequential/sequential_build")
 add_subdirectory("${PROJECT_SOURCE_DIR}/omp_version" "${PROJECT_SOURCE_DIR}/omp_version/omp_version_build")
+add_subdirectory("${PROJECT_SOURCE_DIR}/parallel_prefix" "${PROJECT_SOURCE_DIR}/parallel_prefix/parallel_prefix_build")
