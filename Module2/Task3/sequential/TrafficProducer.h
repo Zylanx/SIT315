@@ -2,9 +2,9 @@
 #define TASK3_TRAFFICPRODUCER_H
 
 #include <memory>
-#include <queue>
 #include <date/date.h>
 
+#include "types.h"
 #include "TrafficData.h"
 #include "TrafficFile.h"
 
@@ -12,10 +12,10 @@
 class TrafficProducer {
 private:
     std::shared_ptr<TrafficFile> file;
-    std::shared_ptr<std::queue<TrafficData>> queue;
+    std::shared_ptr<traffic_queue_t> queue;
 
 public:
-    TrafficProducer(std::shared_ptr<TrafficFile> file, std::shared_ptr<std::queue<TrafficData>> queue) {
+    TrafficProducer(std::shared_ptr<TrafficFile> file, std::shared_ptr<traffic_queue_t> queue) {
         this->file = std::move(file);
         this->queue = std::move(queue);
     }

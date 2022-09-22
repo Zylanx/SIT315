@@ -1,9 +1,7 @@
 #ifndef TASK3_TRAFFICCONSUMER_H
 #define TASK3_TRAFFICCONSUMER_H
 
-#include <chrono>
 #include <memory>
-#include <utility>
 
 #include "types.h"
 

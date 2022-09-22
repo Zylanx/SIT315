@@ -13,7 +13,7 @@ private:
     std::ifstream file;
 
 public:
-    explicit TrafficFile(const std::string& filename) {
+    explicit TrafficFile(std::string filename) {
         this->file.open(filename);
     }
 
