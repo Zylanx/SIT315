@@ -19,7 +19,7 @@ void randomVector(int vector[], int size)
 
 int main(){
 
-    unsigned long size = 100000000;
+    unsigned long size = 100000;
 
     srand(time(0));
 

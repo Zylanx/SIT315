@@ -1,0 +1,4 @@
+#ifndef TASK3_CONFIG_H
+#define TASK3_CONFIG_H
+
+#endif //TASK3_CONFIG_H

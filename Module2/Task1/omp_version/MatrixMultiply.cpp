@@ -1,12 +1,15 @@
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <chrono>
 #include <vector>
 #include <omp.h>
 
 
-#define SIZE 512  // The size of the matrix.
+#define SIZE 10  // The size of the matrix.
 #define THREAD_COUNT 16  // The number of threads to use.
+
+#define MATRIX_FILENAME "matrices.txt"
 
 
 using namespace std::chrono;
@@ -29,6 +32,30 @@ void printMatrix(int const matrix[], int const size)
     }
 
     cout << "***************************************************************************************" << endl;
+}
+
+
+void printMatrixToFile(int const matrix[], int const size, string const matrixName)
+{
+    fstream NewFile(MATRIX_FILENAME, ios_base::in | ios_base::out | ios_base::ate);
+
+    NewFile << "=== " << matrixName << " ===" << endl;
+
+    for (auto i = 0; i < size; i++)
+    {
+        NewFile << matrix[i * size];
+
+        for (auto j = 1; j < size; j++)
+        {
+            NewFile << ", " << matrix[i * size + j];
+        }
+
+        NewFile << endl;
+    }
+//    NewFile.seekp(-2, std::ios_base::cur);
+    NewFile << endl << endl;
+
+    NewFile.close();
 }
 
 
@@ -108,9 +135,17 @@ int main()
     // Compute the run time of the algorithm
     auto duration = duration_cast<microseconds>(stop - start);
 
+    remove(MATRIX_FILENAME);
+
+    ofstream out(MATRIX_FILENAME);
+    out.close();
+
     printMatrix(m1, size);
+    printMatrixToFile(m1, size, "Matrix 1");
     printMatrix(m2, size);
+    printMatrixToFile(m2, size, "Matrix 2");
     printMatrix(m3, size);
+    printMatrixToFile(m3, size, "Result");
 
     cout << "Time taken by function: "
          << duration.count() << " microseconds" << endl;

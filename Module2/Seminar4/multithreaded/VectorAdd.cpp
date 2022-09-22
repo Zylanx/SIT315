@@ -90,7 +90,7 @@ void addVector(const int leftVector[], const int rightVector[], int result[], in
 
 int main()
 {
-    unsigned long size = 100000000;
+    unsigned long size = 1000000;
 
     int *v1, *v2, *v3;
 
