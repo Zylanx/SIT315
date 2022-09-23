@@ -9,8 +9,10 @@
 #include "TrafficFile.h"
 
 
+// Produces traffic data from the file
 class TrafficProducer {
 private:
+    // Shared resources
     std::shared_ptr<TrafficFile> file;
     std::shared_ptr<traffic_queue_t> queue;
 
@@ -20,9 +22,11 @@ public:
         this->queue = std::move(queue);
     }
 
+    // Runs the producer once
     void run_once() {
+        // Read a line, print it, and push it to the queue.
         TrafficData temp = this->file->read_data();
-        std::cout << "Got: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", " << temp.traffic_count;
+        std::cout << "Got: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", " << temp.traffic_count << std::endl;
 
         this->queue->push(temp);
     }

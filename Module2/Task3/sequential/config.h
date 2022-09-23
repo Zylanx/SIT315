@@ -1,4 +1,6 @@
 #ifndef TASK3_CONFIG_H
 #define TASK3_CONFIG_H
 
+#define TOP_INTERSECTIONS 3
+
 #endif //TASK3_CONFIG_H

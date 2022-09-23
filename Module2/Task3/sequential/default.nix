@@ -1,3 +1,5 @@
+#! /usr/bin/env nix-shell
+#! nix-shell --command "nix run --impure --expr \"import ./. {}\""
 { pkgs ? import <nixpkgs> { }, stdenv ? pkgs.stdenv, ... }:
 stdenv.mkDerivation {
     name = "TrafficControl";
@@ -9,4 +11,6 @@ stdenv.mkDerivation {
     ];
 
     src = ./.;
+
+    meta.mainProgram = "sequential";
 }
