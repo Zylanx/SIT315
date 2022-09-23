@@ -65,7 +65,7 @@ void transpose(int const inputMatrix[], int outputMatrix[], int const size)
 int main()
 {
     // Set up the matrix column size, and total length of the storage arrays
-    unsigned long constexpr size = 512;
+    unsigned long constexpr size = 1024;
     unsigned long constexpr length = size * size;
 
     // Worker function to fill a matrix with random values using threads.

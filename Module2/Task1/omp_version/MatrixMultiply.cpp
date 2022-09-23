@@ -6,7 +6,7 @@
 #include <omp.h>
 
 
-#define SIZE 10  // The size of the matrix.
+#define SIZE 1024  // The size of the matrix.
 #define THREAD_COUNT 16  // The number of threads to use.
 
 #define MATRIX_FILENAME "matrices.txt"
