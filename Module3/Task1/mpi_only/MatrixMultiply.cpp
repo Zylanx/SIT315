@@ -98,7 +98,7 @@ void transpose_matrix(matrix_t matrix[], my_size_t const& size) {
     delete[] matrixTemp;
 }
 
-// Setup the control arrays for Scatterv
+// Set up the control arrays for Scatterv
 // Tries to evenly spread the rows around as evenly as possible.
 void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts[], int displs[]) {
     // Work out the number of rows per process, rounded down, as well as the remaining rows.
@@ -111,7 +111,7 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
     print_var("remainingRows", remainingRows);
 #endif
 
-    // Setup the sendcounts array, it specifies how many elements each node receives.
+    // Set up the sendcounts array, it specifies how many elements each node receives.
     {
         // First assign out the evenly spread rows.
         for (auto i = 0; i < groupSize; i++) {
@@ -132,7 +132,7 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
         }
     }
 
-    // Setup the displacement array.
+    // Set up the displacement array.
     int counter = 0;
     for (auto i = 0; i < groupSize; i++) {
         // If the count is zero, the displacement should be the same as the previous, or 0 for the first.
@@ -182,7 +182,7 @@ void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_siz
     int counts[groupSize];
     int displs[groupSize];
 
-    // Setup the displs matrix if this is the root node
+    // Set up the counts and displs matrix if this is the root node
     if (rank == 0) {
         setup_scatter_arrays(size, groupSize, counts, displs);
 

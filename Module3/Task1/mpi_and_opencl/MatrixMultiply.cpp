@@ -3,15 +3,15 @@
 #include <chrono>
 #include <mpi.h>
 
-#include "types.h"
-#include "MatrixMultiplyCl.h"
-#include "multiply_cl.h"
-
-
 //#define PRINT_INPUTS_AND_OUTPUTS  // If the input and output matrices should be printed
 //#define DEBUG
 #define UNCOUNTED_TRANSPOSE  // If the transpose should happen before the timer or after
 #define NON_ROOT_PRIORITY  // If the remaining rows should be assigned with priority to non-root nodes
+
+
+// Type aliases for our usage
+using matrix_t = int;
+using my_size_t = int;
 
 
 // The size of the rows and columns of the matrix
@@ -145,22 +145,45 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
     }
 }
 
+// Multiply a matrix with a vector and save the result into another vector.
+void matrix_vector_multiply(const matrix_t rowVector[], const matrix_t matrixTranspose[], matrix_t resultVector[], my_size_t size) {
+#pragma omp parallel for
+    // Loop through each position of the row vector
+    for (auto i = 0; i < size; i++) {
+        matrix_t result = 0;
+
+        // Then loop through each position of the row vector and the corresponding matrix column (or row for the transposed matrix
+        // adding the multiplication of those two elements to the accumulator
+        for (auto j = 0; j < size; j++) {
+            result += rowVector[j] * matrixTranspose[i * size + j];
+        }
+
+        // Save the result back
+        resultVector[i] = result;
+    }
+}
+
+// Multiplies two vectors using MPI and OpenMP
+// The second matrix will be transposed and broadcast, then the rows of the first matrix are spread between all the
+// processes in the MPI group.
 void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_size_t size) {
 #ifndef UNCOUNTED_TRANSPOSE
+    // Transpose matrix 2 in the root process.
     if (rank == 0) {
+        // Transpose the matrix to make the multiplication easier, ideally it would keep the matrix in the cache more readily.
         transpose_matrix(matrix2, size);
     }
 #endif
 
-    // broadcast matrix2
+    // Broadcast matrix2
     MPI::COMM_WORLD.Bcast(matrix2, size * size, MPI::INT, 0);
 
-    // init the displs matrix
+    // Init the counts and displs arrays
     auto groupSize = MPI::COMM_WORLD.Get_size();
     int counts[groupSize];
     int displs[groupSize];
 
-    // Set up the displs matrix if this is the root node
+    // Set up the counts and displs matrix if this is the root node
     if (rank == 0) {
         setup_scatter_arrays(size, groupSize, counts, displs);
 
@@ -171,37 +194,32 @@ void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_siz
 #endif
     }
 
-    // Broadcast the displs matrix
+    // Broadcast the counts matrix
     MPI::COMM_WORLD.Bcast(counts, groupSize, MPI::INT, 0);
 
+    // Scatter matrix one across all the processes
     MPI::COMM_WORLD.Scatterv(matrix1, counts, displs, MPI::INT, matrix1, size * size, MPI::INT, 0);
 
-    if (counts[rank] > 0) {
-        MatrixMultiplyCl matrixMultiplyCl = MatrixMultiplyCl::from_file("multiply.cl", "matrix_multiply");
+    // Process the matrix multiplications through OpenCL using our matrix multiply class
+    MatrixMultiplyCl matrixMultiplyCl = MatrixMultiplyCl::from_file("multiply.cl", "matrix_multiply");
+    matrixMultiplyCl.process_matrices(matrix1, matrix2, resultMatrix, counts[rank] / size, size);
 
-        matrixMultiplyCl.process_matrices(matrix1, matrix2, resultMatrix, counts[rank] / size, size);
-    }
-
-//    for (int i = 0; i < groupSize; i++) {
-//        MPI::COMM_WORLD.Barrier();
-//        if (i == rank) {
-//            print_matrix("result - " + rank, resultMatrix, size);
-//        }
-//    }
-
+    // Collect the results back
     MPI::COMM_WORLD.Gatherv(resultMatrix, counts[rank], MPI::INT, resultMatrix, counts, displs, MPI::INT, 0);
 }
 
 int main(int argc, char *argv[])
 {
-    MPI::Init(argc,  argv);
+    MPI::Init(argc, argv);
 
     auto size = MATRIX_SIZE;
 
+    // Broadcast the matrix size
     MPI::COMM_WORLD.Bcast(&size, 1, MPI::INT, 0);
 
     int rank = MPI::COMM_WORLD.Get_rank();
 
+    // MPI Bug: Scatterv hangs when one process gets 0 items
     if (size < MPI::COMM_WORLD.Get_size()) {
         if (MPI::COMM_WORLD.Get_rank() == 0) {
             std::cerr << "Matrix smaller than number of nodes. Impossible to continue!" << std::endl <<
@@ -213,30 +231,37 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    // Initialise the matrices
     auto *matrix1 = new matrix_t[size * size]();
     auto *matrix2 = new matrix_t[size * size]();
     auto *resultMatrix = new matrix_t[size * size]();
 
+    // If the process is root, then randomise the matrix and then start the multiplication, or just start the multiplication
     if (rank == 0) {
+        // Randomise the input matrices
         randomise_matrix(matrix1, size);
         randomise_matrix(matrix2, size);
 
 #ifdef PRINT_INPUTS_AND_OUTPUTS
+        // If we are outputting, then print the matrices
         print_matrix("matrix1", matrix1, size);
         print_matrix("matrix2", matrix2, size);
 #endif
 
 #ifdef UNCOUNTED_TRANSPOSE
+        // Transpose the matrix to make the multiplication easier, ideally it would keep the matrix in the cache more readily.
         transpose_matrix(matrix2, size);
 #endif
 
         auto start = std::chrono::high_resolution_clock::now();
 
+        // Start the multiplication
         multiply(rank, matrix1, matrix2, resultMatrix, size);
 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
 
 #ifdef PRINT_INPUTS_AND_OUTPUTS
+        // Print the output/result matrix
         print_matrix("resultMatrix", resultMatrix, size);
 #endif
 
@@ -244,15 +269,20 @@ int main(int argc, char *argv[])
     }
     else {
         auto start = std::chrono::high_resolution_clock::now();
+
+        // Start the multiplication
         multiply(rank, matrix1, matrix2, resultMatrix, size);
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
+
         std::cout << std::endl << "Node Total Time Taken: " << duration.count() << " microseconds" << std::endl;
     }
 
+    // Free up the allocated memory
     delete[] matrix1;
     delete[] matrix2;
     delete[] resultMatrix;
 
+    // Finalise and return
     MPI::Finalize();
     return 0;
 }
