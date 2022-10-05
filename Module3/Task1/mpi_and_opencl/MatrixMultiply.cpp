@@ -3,15 +3,15 @@
 #include <chrono>
 #include <mpi.h>
 
+#include "types.h"
+#include "MatrixMultiplyCl.h"
+#include "multiply_cl.h"
+
+
 //#define PRINT_INPUTS_AND_OUTPUTS  // If the input and output matrices should be printed
 //#define DEBUG
 #define UNCOUNTED_TRANSPOSE  // If the transpose should happen before the timer or after
 #define NON_ROOT_PRIORITY  // If the remaining rows should be assigned with priority to non-root nodes
-
-
-// Type aliases for our usage
-using matrix_t = int;
-using my_size_t = int;
 
 
 // The size of the rows and columns of the matrix
@@ -22,12 +22,12 @@ constexpr my_size_t MATRIX_SIZE = 1024;
 void print_matrix(std::string const& name, const matrix_t matrix[], my_size_t const& size, std::ostream& stream = std::cout) {
     stream << "============= " << name << " =============" << std::endl;
 
-    // loop through the matrix, printing seperators and newlines.
+    // loop through the matrix, printing separators and newlines.
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
             stream << matrix[i * size + j];
 
-            // Skip the seperator for the last element in the row.
+            // Skip the separator for the last element in the row.
             if (j < (size - 1)) {
                 stream << ", ";
             }
@@ -41,11 +41,11 @@ void print_matrix(std::string const& name, const matrix_t matrix[], my_size_t co
 void print_vector(std::string const& name, matrix_t const matrix[], my_size_t const& size, std::ostream& stream = std::cout) {
     stream << "============= " << name << " =============" << std::endl;
 
-    // loop through the vector, printing seperators.
+    // loop through the vector, printing separators.
     for (int i = 0; i < size; i++) {
         stream << matrix[i];
 
-        // Skip the seperator for the last element.
+        // Skip the separator for the last element.
         if (i < (size - 1)) {
             stream << ", ";
         }
@@ -98,7 +98,7 @@ void transpose_matrix(matrix_t matrix[], my_size_t const& size) {
     delete[] matrixTemp;
 }
 
-// Setup the control arrays for Scatterv
+// Set up the control arrays for Scatterv
 // Tries to evenly spread the rows around as evenly as possible.
 void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts[], int displs[]) {
     // Work out the number of rows per process, rounded down, as well as the remaining rows.
@@ -111,7 +111,7 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
     print_var("remainingRows", remainingRows);
 #endif
 
-    // Setup the sendcounts array, it specifies how many elements each node receives.
+    // Set up the sendcounts array, it specifies how many elements each node receives.
     {
         // First assign out the evenly spread rows.
         for (auto i = 0; i < groupSize; i++) {
@@ -132,7 +132,7 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
         }
     }
 
-    // Setup the displacement array.
+    // Set up the displacement array.
     int counter = 0;
     for (auto i = 0; i < groupSize; i++) {
         // If the count is zero, the displacement should be the same as the previous, or 0 for the first.
@@ -145,44 +145,22 @@ void setup_scatter_arrays(my_size_t const& size, int const groupSize, int counts
     }
 }
 
-// Multiply a matrix with a vector and save the result into another vector.
-void matrix_vector_multiply(const matrix_t rowVector[], const matrix_t matrixTranspose[], matrix_t resultVector[], my_size_t size) {
-    // Loop through each position of the row vector
-    for (auto i = 0; i < size; i++) {
-        matrix_t result = 0;
-
-        // Then loop through each position of the row vector and the corresponding matrix column (or row for the transposed matrix
-        // adding the multiplication of those two elements to the accumulator
-        for (auto j = 0; j < size; j++) {
-            result += rowVector[j] * matrixTranspose[i * size + j];
-        }
-
-        // Save the result back
-        resultVector[i] = result;
-    }
-}
-
-// Multiplies two vectors using MPI
-// The second matrix will be transposed and broadcast, then the rows of the first matrix are spread between all the
-// processes in the MPI group.
 void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_size_t size) {
 #ifndef UNCOUNTED_TRANSPOSE
-    // Transpose matrix 2 in the root process.
     if (rank == 0) {
-        // Transpose the matrix to make the multiplication easier, ideally it would keep the matrix in the cache more readily.
         transpose_matrix(matrix2, size);
     }
 #endif
 
-    // Broadcast matrix2
+    // broadcast matrix2
     MPI::COMM_WORLD.Bcast(matrix2, size * size, MPI::INT, 0);
 
-    // Init the counts and displs arrays
+    // init the displs matrix
     auto groupSize = MPI::COMM_WORLD.Get_size();
     int counts[groupSize];
     int displs[groupSize];
 
-    // Setup the displs matrix if this is the root node
+    // Set up the displs matrix if this is the root node
     if (rank == 0) {
         setup_scatter_arrays(size, groupSize, counts, displs);
 
@@ -193,37 +171,41 @@ void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_siz
 #endif
     }
 
-    // Broadcast the counts matrix
+    // Broadcast the displs matrix
     MPI::COMM_WORLD.Bcast(counts, groupSize, MPI::INT, 0);
 
-    // Scatter matrix one across all the processes
     MPI::COMM_WORLD.Scatterv(matrix1, counts, displs, MPI::INT, matrix1, size * size, MPI::INT, 0);
 
-    // Loop through all the rows in the received first matrix, multiplying it all
-    for (int i = 0; i < counts[rank] / size; i++) {
-        matrix_vector_multiply(&matrix1[i * size], matrix2, &resultMatrix[i * size], size);
+    if (counts[rank] > 0) {
+        MatrixMultiplyCl matrixMultiplyCl = MatrixMultiplyCl::from_file("multiply.cl", "matrix_multiply");
+
+        matrixMultiplyCl.process_matrices(matrix1, matrix2, resultMatrix, counts[rank] / size, size);
     }
 
-    // Collect the results back
+//    for (int i = 0; i < groupSize; i++) {
+//        MPI::COMM_WORLD.Barrier();
+//        if (i == rank) {
+//            print_matrix("result - " + rank, resultMatrix, size);
+//        }
+//    }
+
     MPI::COMM_WORLD.Gatherv(resultMatrix, counts[rank], MPI::INT, resultMatrix, counts, displs, MPI::INT, 0);
 }
 
 int main(int argc, char *argv[])
 {
-    MPI::Init(argc, argv);
+    MPI::Init(argc,  argv);
 
     auto size = MATRIX_SIZE;
 
-    // Broadcast the matrix size
     MPI::COMM_WORLD.Bcast(&size, 1, MPI::INT, 0);
 
     int rank = MPI::COMM_WORLD.Get_rank();
 
-    // MPI Bug: Scatterv hangs when one process gets 0 items
     if (size < MPI::COMM_WORLD.Get_size()) {
         if (MPI::COMM_WORLD.Get_rank() == 0) {
             std::cerr << "Matrix smaller than number of nodes. Impossible to continue!" << std::endl <<
-                "A bug in OpenMPI 4.X means that Scatterv fails if not all nodes have work." << std::endl;
+                      "A bug in OpenMPI 4.X means that Scatterv fails if not all nodes have work." << std::endl;
         }
 
         MPI::Finalize();
@@ -231,37 +213,30 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // Initialise the matrices
     auto *matrix1 = new matrix_t[size * size]();
     auto *matrix2 = new matrix_t[size * size]();
     auto *resultMatrix = new matrix_t[size * size]();
 
-    // If the process is root, then randomise the matrix and then start the multiplication, or just start the multiplication
     if (rank == 0) {
-        // Randomise the input matrices
         randomise_matrix(matrix1, size);
         randomise_matrix(matrix2, size);
 
 #ifdef PRINT_INPUTS_AND_OUTPUTS
-        // If we are outputting, then print the matrices
         print_matrix("matrix1", matrix1, size);
         print_matrix("matrix2", matrix2, size);
 #endif
 
 #ifdef UNCOUNTED_TRANSPOSE
-        // Transpose the matrix to make the multiplication easier, ideally it would keep the matrix in the cache more readily.
         transpose_matrix(matrix2, size);
 #endif
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Start the multiplication
         multiply(rank, matrix1, matrix2, resultMatrix, size);
 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
 
 #ifdef PRINT_INPUTS_AND_OUTPUTS
-        // Print the output/result matrix
         print_matrix("resultMatrix", resultMatrix, size);
 #endif
 
@@ -269,20 +244,15 @@ int main(int argc, char *argv[])
     }
     else {
         auto start = std::chrono::high_resolution_clock::now();
-
-        // Start the multiplication
         multiply(rank, matrix1, matrix2, resultMatrix, size);
-
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
         std::cout << std::endl << "Node Total Time Taken: " << duration.count() << " microseconds" << std::endl;
     }
 
-    // Free up the allocated memory
     delete[] matrix1;
     delete[] matrix2;
     delete[] resultMatrix;
 
-    // Finalise and return
     MPI::Finalize();
     return 0;
 }
