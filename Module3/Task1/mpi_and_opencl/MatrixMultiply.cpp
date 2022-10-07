@@ -3,6 +3,8 @@
 #include <chrono>
 #include <mpi.h>
 
+#include "MatrixMultiplyCl.h"
+
 //#define PRINT_INPUTS_AND_OUTPUTS  // If the input and output matrices should be printed
 //#define DEBUG
 #define UNCOUNTED_TRANSPOSE  // If the transpose should happen before the timer or after
@@ -15,7 +17,7 @@ using my_size_t = int;
 
 
 // The size of the rows and columns of the matrix
-constexpr my_size_t MATRIX_SIZE = 1024;
+constexpr my_size_t MATRIX_SIZE = 128;
 
 
 // Print out a matrix, along with its name, to the given output.
@@ -201,7 +203,7 @@ void multiply(int rank, int matrix1[], int matrix2[], int resultMatrix[], my_siz
     MPI::COMM_WORLD.Scatterv(matrix1, counts, displs, MPI::INT, matrix1, size * size, MPI::INT, 0);
 
     // Process the matrix multiplications through OpenCL using our matrix multiply class
-    MatrixMultiplyCl matrixMultiplyCl = MatrixMultiplyCl::from_file("multiply.cl", "matrix_multiply");
+    MatrixMultiplyCl matrixMultiplyCl("multiply.cl", "matrix_multiply");
     matrixMultiplyCl.process_matrices(matrix1, matrix2, resultMatrix, counts[rank] / size, size);
 
     // Collect the results back

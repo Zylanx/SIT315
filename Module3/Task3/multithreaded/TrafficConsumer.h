@@ -46,6 +46,12 @@ public:
             return false;
         }
 
+        // Composes the message first to ensure thread safe printing
+        std::stringstream msg;
+        msg << "Consumed: " << date::format("%F %T", data.timestamp) << ", " << data.traffic_id << ", "
+            << data.traffic_count << std::endl;
+        std::cout << msg.str();
+
         this->congestion_map->add_entry(data);
 
         return true;

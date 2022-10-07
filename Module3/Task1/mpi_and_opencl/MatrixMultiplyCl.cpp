@@ -6,7 +6,7 @@
 
 
 // Initialises the matrix multiply with a .cl file and kernel function name
-MatrixMultiplyCl MatrixMultiplyCl::MatrixMultiplyCl(std::string const &filename, std::string const &kernelName) {
+MatrixMultiplyCl::MatrixMultiplyCl(std::string const &filename, std::string const &kernelName) {
     this->select_device();
 
     this->create_context();
@@ -15,11 +15,6 @@ MatrixMultiplyCl MatrixMultiplyCl::MatrixMultiplyCl(std::string const &filename,
 
     this->create_queue();
     this->create_kernel(kernelName);
-
-    // Create buffers for each of the matrix buffers
-    this->matrix1 = clCreateBuffer(context, CL_MEM_READ_ONLY, rows * cols * sizeof(int), nullptr, nullptr);
-    this->matrix2Transposed = clCreateBuffer(context, CL_MEM_READ_ONLY, cols * cols * sizeof(int), nullptr, nullptr);
-    this->results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, rows * cols * sizeof(int), nullptr, nullptr);
 }
 
 // Destructor manages cleaning up the OpenCL objects and memory
@@ -151,6 +146,11 @@ void MatrixMultiplyCl::create_kernel(std::string const &kernelName) {
 // Processes the given matrices and gives an output
 void MatrixMultiplyCl::process_matrices(matrix_t matrix1[], matrix_t matrix2Transposed[], matrix_t results[], my_size_t rows, my_size_t cols) {
     cl_event event = nullptr;
+
+    // Create buffers for each of the matrix buffers
+    this->matrix1 = clCreateBuffer(context, CL_MEM_READ_ONLY, rows * cols * sizeof(int), nullptr, nullptr);
+    this->matrix2Transposed = clCreateBuffer(context, CL_MEM_READ_ONLY, cols * cols * sizeof(int), nullptr, nullptr);
+    this->results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, rows * cols * sizeof(int), nullptr, nullptr);
 
     // Load the matrices into the memory buffers
     clEnqueueWriteBuffer(this->queue, this->matrix1, CL_TRUE, 0, rows * cols * sizeof(int), matrix1, 0, nullptr, nullptr);

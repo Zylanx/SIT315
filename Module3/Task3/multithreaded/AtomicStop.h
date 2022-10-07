@@ -6,7 +6,7 @@
 
 struct AtomicStop {
     std::mutex stopped_mutex;
-    std::atomic<bool> stopped;
+    bool stopped;
 };
 
 #endif

@@ -58,7 +58,10 @@ void start_threads(std::vector<std::unique_ptr<TrafficThread>> &threads) {
 
 // Wait for all threads to finish
 void wait_for_threads(std::vector<std::unique_ptr<TrafficThread>> &threads) {
-    std::cout << "Joining on threads" << std::endl;
+    // Composes the message first to ensure thread safe printing
+    std::stringstream msg;
+    msg << "Joining on threads" << std::endl;
+    std::cout << msg.str();
 
     for (auto &thread : threads) {
         thread->join();
@@ -74,7 +77,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "Test file could not be found" << std::endl;
         return -1;
     }
-    std::shared_ptr<traffic_queue_t> queue = std::make_shared<traffic_queue_t>();
+    std::shared_ptr<traffic_queue_t> queue = std::make_shared<traffic_queue_t>(QUEUE_SIZE_BOUND);
     std::shared_ptr<congestion_map_t> congestion_map = std::make_shared<congestion_map_t>();
 
     // Create the producers and consumers

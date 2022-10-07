@@ -57,7 +57,7 @@ public:
 
             // Composes the message first to ensure thread safe printing
             std::stringstream msg;
-            msg << "Got: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", "
+            msg << "Produced: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", "
                 << temp.traffic_count << std::endl;
             std::cout << msg.str();
 

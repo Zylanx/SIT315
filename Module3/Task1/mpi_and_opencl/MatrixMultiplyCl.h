@@ -32,7 +32,7 @@ private:
 
 public:
     // Initialises the matrix multiply with a .cl file and kernel function name
-    static MatrixMultiplyCl(std::string const &filename, std::string const &kernelName);
+    MatrixMultiplyCl(std::string const &filename, std::string const &kernelName);
 
     // Destructor manages cleaning up the OpenCL objects and memory
     ~MatrixMultiplyCl();
