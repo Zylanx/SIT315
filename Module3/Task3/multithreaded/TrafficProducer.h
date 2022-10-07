@@ -3,6 +3,8 @@
 
 #include <memory>
 #include <stdexcept>
+#include <iostream>
+#include <sstream>
 #include <date/date.h>
 
 #include "types.h"
@@ -21,15 +23,22 @@ private:
 
     static AtomicStop stopped;
 
-    void enqueue_end_op() {
+    // Adds an end op to the queue to kill all the consumers
+    void enqueue_end_op(std::stringstream &msg) {
+        // Lock the stopped variable so only one producer will ever enqueue an end op
         const std::lock_guard<std::mutex> lock(TrafficProducer::stopped.stopped_mutex);
 
+        // No producer has stopped yet.
         if (!TrafficProducer::stopped.stopped) {
-            TrafficData emptyop;
-            emptyop.running = false;
+            // Create an end op
+            TrafficData end_op;
+            end_op.running = false;
 
-            this->queue->push(std::move(emptyop));
+            // Push it to the queue and set the stop variable
+            this->queue->push(std::move(end_op));
             TrafficProducer::stopped.stopped = true;
+        } else {
+            msg << " Consumers already stopped";
         }
     }
 
@@ -40,12 +49,17 @@ public:
     }
 
     // Runs the producer once
+    // Returns false when it should stop, true otherwise
     bool run_once() {
         // Read a line, print it, and push it to the queue.
         try {
             TrafficData temp = this->file->read_data();
-            std::cout << "Got: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", "
-                      << temp.traffic_count << std::endl;
+
+            // Composes the message first to ensure thread safe printing
+            std::stringstream msg;
+            msg << "Got: " << date::format("%F %T", temp.timestamp) << ", " << temp.traffic_id << ", "
+                << temp.traffic_count << std::endl;
+            std::cout << msg.str();
 
             this->queue->push(temp);
             return true;
@@ -59,8 +73,15 @@ public:
         while (this->run_once()) {
         }
 
-        std::cout << "File has reached EOF, enqueuing end op." << std::endl;
-        this->enqueue_end_op();
+        // Composes the message first to ensure thread safe printing
+        std::stringstream msg;
+        msg << "File has reached EOF, enqueuing end op.";
+
+        // Add a stop message to the queue to kill the consumers
+        this->enqueue_end_op(msg);
+
+        msg << std::endl;
+        std::cout << msg.str();
 
         return;
     }

@@ -4,6 +4,8 @@
 #include <thread>
 #include <iostream>
 #include <chrono>
+#include <algorithm>
+#include <random>
 
 #include "config.h"
 #include "types.h"
@@ -12,71 +14,52 @@
 #include "TrafficConsumer.h"
 #include "TrafficThread.h"
 #include "AtomicStop.h"
+#include "TrafficStore.h"
 
 
-#pragma region "Flipping"
-// The map flipping code was taken from https://stackoverflow.com/a/5056797
-// No changes were made, all credit goes to Oliver Charlesworth
-
-// Flips a maps pair
-template<typename A, typename B>
-std::pair<B,A> flip_pair(const std::pair<A,B> &p)
-{
-    return std::pair<B,A>(p.second, p.first);
-}
-
-// flips all the pairs in a map, turning it into a multimap
-template<typename A, typename B>
-std::multimap<B,A> flip_map(const std::map<A,B> &src)
-{
-    std::multimap<B,A> dst;
-    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()),
-                   flip_pair<A,B>);
-    return dst;
-}
-#pragma endregion
-
-
-// Prints out the congestion map, printing out the most congested intersections for each hour.
-void print_congestion_map(congestion_map_t const& congestionMap) {
-    // Iterate through each hour in order
-    for (const auto& element : congestionMap) {
-        // Print the hour
-        std::cout << "Hour: " << element.first.count() << std::endl;
-
-        // Get the hours entry and flip it, to sort the traffic lights in reverse
-        congestion_entry_t entry = element.second;
-        std::multimap<traffic_count_t, traffic_id_t> flipped = flip_map(entry);
-
-        // Now iterate through the first TOP_INTERSECTIONS lights, printing them out.
-        auto traffic_element = flipped.rbegin();
-        for (auto i = 0; i < TOP_INTERSECTIONS && traffic_element != flipped.rend(); i++) {
-            std::cout << "\t" << "Light ID: " << traffic_element->second << ", Count: " << traffic_element->first << std::endl;
-            traffic_element++;
-        }
-        std::cout << std::endl;
-    }
-}
-
+// Set up the thread objects. Distributing the threads between producers and consumers according to the ratio configured
 std::vector<std::unique_ptr<TrafficThread>> setup_thread_objects(std::shared_ptr<TrafficFile> file, std::shared_ptr<traffic_queue_t> queue, std::shared_ptr<congestion_map_t> congestion_map) {
+    // Initialise the thread storage
     std::vector<std::unique_ptr<TrafficThread>> threads;
-    auto threadCount = 2; //std::thread::hardware_concurrency();
+    auto threadCount = std::thread::hardware_concurrency() * THREAD_MULTIPLIER; // Get the number of hardware threads then multiply it, usually by 1.
 
-    for (auto i = 0; i < threadCount / 2; i++) {
+    // Producer and consumer thread counts by ratio
+    unsigned int producerCount = threadCount * PRODUCER_CONSUMER_RATIO;
+    unsigned int consumerCount = threadCount * (1 - PRODUCER_CONSUMER_RATIO);
+
+    std::cout << "Creating threads. Producers: " << producerCount << ", Consumers: " << consumerCount << std::endl;
+
+    // Create the producer threads
+    for (auto i = 0; i < producerCount; i++) {
         threads.push_back(std::unique_ptr<TrafficThread>(new TrafficProducer(file, queue)));
+    }
+
+    // Create the consumer threads
+    for (auto i = 0; i < consumerCount; i++) {
         threads.push_back(std::unique_ptr<TrafficThread>(new TrafficConsumer(congestion_map, queue)));
     }
+
+    // Randomly shuffle the threads so they start in a random order
+    auto randomDevice = std::random_device {};
+    auto randomEngine = std::default_random_engine { randomDevice() };
+    std::shuffle(std::begin(threads), std::end(threads), randomEngine);
 
     return threads;
 }
 
+// Start all threads
 void start_threads(std::vector<std::unique_ptr<TrafficThread>> &threads) {
+    std::cout << "Starting threads..." << std::endl;
+
     for (auto &thread : threads) {
         thread->start();
     }
 }
 
+// Wait for all threads to finish
 void wait_for_threads(std::vector<std::unique_ptr<TrafficThread>> &threads) {
+    std::cout << "Joining on threads" << std::endl;
+
     for (auto &thread : threads) {
         thread->join();
     }
@@ -102,21 +85,11 @@ int main(int argc, char *argv[]) {
     queue.reset();
 
     // Start the threads
-    std::cout << "starting" << std::endl;
     start_threads(threads);
-    std::cout << "joining" << std::endl;
     wait_for_threads(threads);
 
-    // Loop the producer and consumer, catching when the file runs out
-//    try {
-//        while (true) {
-//            producer.run_once();
-//            consumer.run_once();
-//        }
-//    } catch (const std::ios_base::failure) { }
-
-    std::cout << "ended" << std::endl;
+    std::cout << std::endl << "Processing Complete" << std::endl;
 
     // Print the final congestion map
-    print_congestion_map(*congestion_map);
+    congestion_map->print_entries();
 }

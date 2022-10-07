@@ -9,9 +9,6 @@ class TrafficThread {
 private:
     std::thread thread;
 
-protected:
-    std::shared_ptr<std::atomic<bool>> running;
-
 public:
     // Thread entrypoint
     virtual void run() = 0;

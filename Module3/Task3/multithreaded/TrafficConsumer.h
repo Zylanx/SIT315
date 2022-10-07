@@ -4,6 +4,8 @@
 #include <memory>
 #include <stdexcept>
 #include <chrono>
+#include <iostream>
+#include <sstream>
 
 #include "types.h"
 #include "TrafficThread.h"
@@ -24,6 +26,7 @@ public:
     }
 
     // Runs the consumer once, taking in one piece of data
+    // Returns false when it should stop and true otherwise.
     bool run_once() {
         TrafficData data;
 
@@ -32,27 +35,18 @@ public:
             std::this_thread::sleep_for(std::chrono::microseconds(1)); // Tiny wait so the OS can switch out as needed
         }
 
+        // If the data is a stop op, then push it back to the queue for other consumers, and return false
         if (!data.running) {
-            std::cout << "End op found, ending consumer" << std::endl;
+            // Composes the message first to ensure thread safe printing
+            std::stringstream msg;
+            msg << "End op found, ending consumer" << std::endl;
+            std::cout << msg.str();
+
             this->queue->push(data);
             return false;
         }
 
-//        this->queue->pop(data);
-
-        // Work out what hour it fits into
-        local_hours hour = std::chrono::time_point_cast<std::chrono::hours>(data.timestamp).time_since_epoch();
-
-        // If the hour slot doesn't exist, create it
-        this->congestion_map->try_emplace(hour);
-
-        // and if the traffic light slot is empty in that hour, fill it with zero
-        if (!(*this->congestion_map)[hour].contains(data.traffic_id)) {
-            (*this->congestion_map)[hour][data.traffic_id] = 0;
-        }
-
-        // Add the traffic count to the slot
-        (*this->congestion_map)[hour][data.traffic_id] += data.traffic_count;
+        this->congestion_map->add_entry(data);
 
         return true;
     }
