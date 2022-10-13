@@ -16,10 +16,10 @@ using my_size_t = int;
 
 
 // The size of the rows and columns of the matrix
-constexpr my_size_t MATRIX_SIZE = 1024;
+constexpr my_size_t MATRIX_SIZE = 512;
 
 // Select the max threads available on the platform for use
-const auto THREAD_COUNT = omp_get_max_threads();
+const auto THREAD_COUNT = 2; //omp_get_max_threads();
 
 
 // Print out a matrix, along with its name, to the given output.
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 {
     // Set the number of OMP threads
     omp_set_num_threads(THREAD_COUNT);
-
+    
     MPI::Init(argc, argv);
 
     auto size = MATRIX_SIZE;

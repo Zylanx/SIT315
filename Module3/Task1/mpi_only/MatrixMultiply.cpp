@@ -15,7 +15,7 @@ using my_size_t = int;
 
 
 // The size of the rows and columns of the matrix
-constexpr my_size_t MATRIX_SIZE = 1024;
+constexpr my_size_t MATRIX_SIZE = 4096;
 
 
 // Print out a matrix, along with its name, to the given output.

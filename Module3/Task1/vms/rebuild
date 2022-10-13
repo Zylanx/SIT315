@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -e "./result" ]; then
+    resultPath="$(nix-store --query ./result)" > /dev/null
+    echo $resultPath
+    read -s -t 1
+    #read -s -n 1 -p "Press any key to continue . . ."
+    #echo ""
+
+    rm ./result > /dev/null
+    nix-store --delete "$resultPath"
+fi
+
+nix-build $1
